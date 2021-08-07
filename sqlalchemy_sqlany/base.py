@@ -840,10 +840,42 @@ class SQLAnyDialect(default.DefaultDialect):
 
         return [v["name"] for v in views]
 
+    def has_local_temporary_table(self, connection, table_name):
+        """
+        Check whether local temporary table exists
+        """
+
+        has_table = None
+        CHECK_TABLE_SQL = text(f"""
+            BEGIN
+            DECLARE CREATE_TABLE_FAILED EXCEPTION FOR SQLSTATE '52010';
+            DECLARE @Res INT;
+            BEGIN
+                CREATE LOCAL TEMPORARY TABLE {table_name}
+                (
+                    Id INT
+                ) ON COMMIT PRESERVE ROWS;
+                SET @Res = 0;
+                DROP TABLE {table_name};
+                EXCEPTION
+                WHEN CREATE_TABLE_FAILED
+                THEN SET @Res = 1;
+                WHEN OTHERS THEN RESIGNAL;
+            END;
+            SELECT @Res;
+            END;
+        """)
+
+        result = connection.execute(CHECK_TABLE_SQL)
+        has_table = result.scalar()
+        return  True if has_table == 1 else False
+
     def has_table(self, connection, table_name, schema=None):
         try:
             self.get_table_id(connection, table_name, schema)
         except exc.NoSuchTableError:
+            if schema is None:
+                return self.has_local_temporary_table(self, connection, table_name)
             return False
         else:
             return True
