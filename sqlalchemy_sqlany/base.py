@@ -840,7 +840,7 @@ class SQLAnyDialect(default.DefaultDialect):
 
         return [v["name"] for v in views]
 
-    def has_local_temporary_table(self, connection, table_name):
+    def has_local_temporary_table(self, connection, table_name, **kw):
         """
         Check whether local temporary table exists
         """
@@ -874,11 +874,12 @@ class SQLAnyDialect(default.DefaultDialect):
         try:
             self.get_table_id(connection, table_name, schema)
         except exc.NoSuchTableError:
-            if schema is None:
-                return self.has_local_temporary_table(self, connection, table_name)
-            return False
+            found = False
         else:
-            return True
+            found = True
+        if not found and schema is None:
+            found = self.has_local_temporary_table(connection, table_name)
+        return found
 
     def is_disconnect(self, e, connection, cursor):
         """
